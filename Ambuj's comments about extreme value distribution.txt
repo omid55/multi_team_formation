@@ -1,0 +1,7 @@
+extreme value distribution
+http://www.itl.nist.gov/div898/handbook/apr/section1/apr163.htm
+https://en.wikipedia.org/wiki/Generalized_extreme_value_distribution
+background distribution
+http://www.sciencedirect.com/science/article/pii/S0730725X10000585
+https://en.wikipedia.org/wiki/P-value
+
