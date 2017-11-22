@@ -8,18 +8,26 @@ import pyemd
 
 RESCALE = True
 
+
 # n: number of individuals
 # m: number of team members
 # k: number of teams
 # s: number of skills
 class Problem:
-    def __init__(self, n, s, m, k, alpha=1/3, beta=1/3):
+    def __init__(self, n, s, m, k, alpha=1/3, beta=1/3, skill_weight=None):
         self.n = n
         self.m = m
         self.k = k
         self.s = s
         self.alpha = alpha
         self.beta = beta
+        if skill_weight is None:   # which means not defined
+            # we consider all skills are equally important
+            self.skill_weight = np.ones(s) / s   # this means all of skills have same impact in success
+        elif np.sum(skill_weight) == 1 and len(skill_weight) == s:
+            self.skill_weight = skill_weight
+        else:
+            raise ValueError('Error in skill_weight parameter: Not expected structure/values.')
         self._generate()
         # **kwargs
         # for key, value in kwargs.iteritems():
@@ -32,7 +40,7 @@ class Problem:
     s: number of skills (skill dimensions)
     """
     def _generate(self):
-        # np.random.seed(1)  # to make all random values same   << COMMENT IT FOR ACTUAL RUN >>
+        #np.random.seed(1)  # to make all random values same   << COMMENT IT FOR ACTUAL RUN >>
         # skills of every person: every person has a list of s elements describing his/her skill values fall in [0-1].
         self.skills = np.random.rand(self.n, self.s)
         # risk taking of every person: it is also a value between [0,1].
@@ -73,8 +81,7 @@ class Problem:
     def score1_single_team(self, team):
         s1 = 0
         for i in range(self.s):
-            s1 += np.mean(sorted(self.skills[team,i])[-2:])
-        s1 /= self.s
+            s1 += self.skill_weight[i] * np.mean(sorted(self.skills[team, i])[-2:])
         if RESCALE:
             s1 = 7 * (s1 - 0.79)
         return s1
@@ -170,8 +177,6 @@ class Problem:
             s3_team /= (k * (np.power(stds[i], 2) + eps))
             s3 += s3_team
         s3 /= k
-        if RESCALE:
-            s3 = 13.56 * (s3 - 0.92)
         return s3
 
 

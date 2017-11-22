@@ -14,6 +14,7 @@ class DivideAndConquerAlgorithm:
     def __init__(self, problem):
         self.problem = problem
 
+
     def solve(self):
         self.solution_teams = []
         k = self.problem.k
@@ -22,38 +23,105 @@ class DivideAndConquerAlgorithm:
         # sorting people with increasing order of their risk taking feature
         # sorted_risks = sorted(self.problem.risk_takings[people_list])
         ordered_people = [x for _,x in sorted(zip(self.problem.risk_takings[people_list], people_list))]
-        self.divide_people(ordered_people, k)
+        self.find_teams(ordered_people, k)
         self.solution_teams = sorted([list(sorted(team)) for team in self.solution_teams])  # not necessary (just for being similar to other solutions)
         return self.solution_teams
 
+
     # it is a recursive function divides ordered_people into 2 pieces
     #   and ...
-    def divide_people(self, ordered_people, teams_count):
+    def find_teams(self, ordered_people, teams_count):
         if teams_count <= 1:
             # find only one team now
             self.solution_teams.append(self.find_single_team(ordered_people))
-            # self.solution_teams.append(self.find_single_team_exhaustive(ordered_people))
+            #self.solution_teams.append(self.find_single_team_exhaustive(ordered_people))
             return
         r = self.find_where_to_divide(ordered_people, teams_count)
-        self.divide_people(ordered_people[:r], int(teams_count/2))
-        self.divide_people(ordered_people[r:], int(teams_count/2))
+        self.find_teams(ordered_people[:r], int(teams_count/2))
+        self.find_teams(ordered_people[r:], int(teams_count/2))
 
+
+    """Where ..."""
     def find_where_to_divide(self, ordered_people, teams_count):
         m = self.problem.m
         fitness = []
-        half_people = int(teams_count*m/2)
-        for i in range(half_people, len(ordered_people)-half_people+1):
+        half_required_people = int(teams_count*m/2)
+        half_teams_count = int(teams_count/2)
+        for i in range(half_required_people, len(ordered_people)-half_required_people+1):
             left = ordered_people[:i]
             right = ordered_people[i:]
-            fitness.append((self.estimate_fitness(left) + self.estimate_fitness(right))/2)
-        r = half_people + np.argmax(fitness)
+            left_est_fitness = self.estimate_fitness_simple(left, half_teams_count)
+            right_est_fitness = self.estimate_fitness_simple(right, half_teams_count)
+            fitness.append((left_est_fitness + right_est_fitness)/2)
+        r = half_required_people + np.argmax(fitness)
         return r
 
-    def estimate_fitness(self, people_list):
-        if len(people_list) < 2 * self.problem.k:
+
+    """It only considers score1 (skills)"""
+    def estimate_fitness_simple(self, people_list, teams_count):
+        s = self.problem.s
+        m = self.problem.m
+        skill_weight = self.problem.skill_weight
+        if len(people_list) < m * teams_count:
             return -1
-        sorted_skills = sorted(self.problem.skills[people_list])
-        return np.mean(sorted_skills[-2 * self.problem.k:])
+        estimate = 0
+        for j in range(s):
+            sorted_skills = sorted(self.problem.skills[people_list, j])
+            estimate += skill_weight[j] * np.mean(sorted_skills[-2 * teams_count:])
+        return estimate
+
+
+    """For or every skill, we consider the score distribution of average of all pairs of individuals. We sample c1
+    pairs (without replacement) and consider highest teams_count/2 scores. We run this c2 times and the average expected
+    skill score is obtained.
+    """
+    def approximate_skills(self, people_list, teams_count):
+        s = self.problem.s
+        people_size = len(people_list)
+        couples_size = int((people_size*people_size+people_size)/2)
+        skills = self.problem.skills
+        # setting the constants for this function
+        c1 = min(3*teams_count, couples_size)
+        c2 = 100
+        skill_weight = self.problem.skill_weight
+        couples_scores = np.zeros(couples_size)
+        approximate_score = 0
+        for skill_index in range(s):  # for every skill
+            cnt = 0
+            for i in range(people_size):  # for every 2 people
+                for j in range(i+1, people_size):
+                    couple_score = (skills[people_list[i], skill_index] +
+                                    skills[people_list[j], skill_index]) / 2
+                    couples_scores[cnt] = couple_score
+                    cnt += 1
+            bin_count = min(len(couples_scores), 50)
+            hist, bins = np.histogram(couples_scores, bins=bin_count)
+            hist_probability = hist / sum(hist)
+            mid_bins = bins[:-1] + np.diff(bins) / 2
+            score = 0
+            for run in range(c2):
+                samples = np.random.choice(mid_bins, size=c1, replace=True, p=hist_probability)    # HOW TO MAKE REPLACE FALSE??? << CHECK HERE >>
+                samples_sorted = sorted(samples)
+                score += np.mean(samples_sorted[-teams_count:])
+            score /= c2
+            approximate_score += skill_weight[skill_index] * score
+        return approximate_score
+
+
+    def approximate_risks(self, people_list, teams_count):
+        return NotImplementedError()
+
+
+    def estimate_fitness(self, people_list, teams_count):
+        s = self.problem.s
+        m = self.problem.m
+        if len(people_list) < m * teams_count:
+            return -1  # there is not enough people left in this people_list to create team_count teams of m people with
+        score1_estimate = self.approximate_skills(people_list, teams_count)
+        # score3_estimate = self.approximate_risks(people_list, teams_count)
+        # estimate = (1 - self.problem.alpha - self.problem.beta) * score1_estimate + self.problem.beta * score3_estimate
+        return score1_estimate #estimate
+
 
     # This choice is made based on the skills of the individuals and the uniformity of network connectivity.
     def find_single_team(self, people):
@@ -63,7 +131,7 @@ class DivideAndConquerAlgorithm:
         # estimate_of_score1 = np.mean(sorted(self.problem.skills)[-2:])
         pq = PriorityQueue()    # priority queue of people in subset of teams
         for i in range(l):
-            for j in range(i+1,l):
+            for j in range(i+1, l):
                 item = [people[i], people[j]]
                 estimate_score = np.mean(self.problem.skills[item]) # it does not have score2 because there is only one distance
                 pq.put((-estimate_score, item))
@@ -86,6 +154,7 @@ class DivideAndConquerAlgorithm:
         print('It didn\'t find any single team in function "find_single_team".')
         return -5  # which means ended without finding any good team
 
+
     def find_single_team_exhaustive(self, people):
         m = self.problem.m
         if len(people) < m:
@@ -102,9 +171,11 @@ class DivideAndConquerAlgorithm:
         return best_team
 
 
+
 class ByRandom:
     def __init__(self, problem):
         self.problem = problem
+
 
     """Randomly pick teams"""
     def solve(self):
@@ -289,7 +360,7 @@ class GeneticAlgorithm:
 
     """Performing the cross over function on population"""
     def uniform_crossover(self, population, fitnesses, crossover_prob):
-        return None  # NOT IMPLEMENTED YET << CHECK HERE >>
+        return NotImplementedError  # NOT IMPLEMENTED YET << CHECK HERE >>
 
     def crossover(self, population, fitnesses, crossover_prob):
         population_size = len(population)
@@ -299,7 +370,8 @@ class GeneticAlgorithm:
         L = len(population[0])
         crossovered_population = []
         # choosing for crossover based on their fitnesses
-        fitnesses -= min(fitnesses)
+        eps = 0.01   # this is because we don't want all of them become 0, consider fitn = [0.2, 0.2, 0.2, 0.2, 0.2], then all become 0.
+        fitnesses -= (min(fitnesses) - eps)
         fitnesses_as_distribution = fitnesses / np.sum(fitnesses)
         for i in range(int(population_size/2)):
             if np.random.rand() <= crossover_prob:

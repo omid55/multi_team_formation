@@ -35,7 +35,7 @@ def plot_all_for_problem(problem):
         population.append(instance)
     # computing their fitnesses
     # objectives
-    objs = [problem.score1, problem.score2, problem.score3, problem.objective_function]
+    objs = [problem.score1, problem.score2, problem.score3_meanstd, problem.score3, problem.objective_function]
     # objs = [problem.score1]
     for obj in objs:
         print(obj)

@@ -55,26 +55,45 @@ def validate_solution(teams, problem):
 
 def main():
     # parameters begins
-    # n = 1000
-    # m = 20
-    # k = 16
+    n = 1000
+    m = 20
+    k = 16
+
     # n = 10
     # m = 3
     # k = 2
-    n = 7
-    m = 3
-    k = 2
-    s = 1
+
+    # n = 7
+    # m = 3
+    # k = 2
+
+    #n = 7
+    # n = 5
+    # m = 2
+    # k = 2
+
+    s = 8
+
     alpha = 1/3
     beta = 1/3
+    skill_weight = np.ones(s) / s  # all skills are equally important
     # parameters ends
-    problem = teams_of_teams_problem.Problem(n=n, s=s, m=m, k=k, alpha=alpha, beta=beta)
+    problem = teams_of_teams_problem.Problem(n=n, s=s, m=m, k=k, alpha=alpha, beta=beta, skill_weight=skill_weight)
 
     # plot_all_for_problem(problem)
 
 
     # Solutions:
     print('Solutions:\n')
+
+    # Random
+    start_time = time.time()
+    byrandom = methods.ByRandom(problem)
+    random_team = byrandom.solve()
+    print('Random:\t\t\t\t', problem.objective_function(random_team)) # print('Random:\t\t\t', problem.objective_function(random_team), random_team)
+    duration = round(time.time() - start_time, 2)
+    print('Valid: ', validate_solution(random_team, problem))
+    print('(in ', duration, 's).\n')
 
     # Dvidie & Conquer
     start_time = time.time()
@@ -99,15 +118,6 @@ def main():
     print('Valid: ', validate_solution(de_team, problem))
     print('(in ', duration, 's).\n')
     gc.collect()
-
-    # Random
-    start_time = time.time()
-    byrandom = methods.ByRandom(problem)
-    random_team = byrandom.solve()
-    print('Random:\t\t\t\t', problem.objective_function(random_team)) # print('Random:\t\t\t', problem.objective_function(random_team), random_team)
-    duration = round(time.time() - start_time, 2)
-    print('Valid: ', validate_solution(random_team, problem))
-    print('(in ', duration, 's).\n')
 
     # Genetic Algorithm (GA)
     start_time = time.time()
