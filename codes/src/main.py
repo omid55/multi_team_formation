@@ -39,46 +39,33 @@ def plot_all_for_problem(problem):
         print('\n\n\n\n')
 
 
-def validate_solution(teams, problem):
-    if len(teams) != problem.k:
-        return False
-    for team in teams:
-        if (len(team) != problem.m) or (len(np.unique(team)) != problem.m):
-            return False
-    members = np.ndarray.flatten(np.array(teams))
-    if len(np.unique(members)) != problem.k * problem.m:
-        return False
-    if np.where(members > problem.n)[0] or np.where(members < 0)[0]:
-        return False
-    return True
-
 
 def main():
     # parameters begins
-    n = 1000
-    m = 20
-    k = 16
+    # n = 1000
+    # m = 20
+    # k = 16
 
     # n = 10
     # m = 3
     # k = 2
 
-    # n = 7
-    # m = 3
-    # k = 2
+    n = 7
+    m = 3
+    k = 2
 
     #n = 7
     # n = 5
     # m = 2
     # k = 2
 
-    s = 8
+    s = 1
 
     alpha = 1/3
     beta = 1/3
     skill_weight = np.ones(s) / s  # all skills are equally important
     # parameters ends
-    problem = teams_of_teams_problem.Problem(n=n, s=s, m=m, k=k, alpha=alpha, beta=beta, skill_weight=skill_weight)
+    problem = teams_of_teams_problem.Problem(n=n, s=s, m=m, k=k, alpha=alpha, beta=beta, skill_weight=skill_weight, ALWAYS_SAME=True)
 
     # plot_all_for_problem(problem)
 
@@ -92,7 +79,7 @@ def main():
     random_team = byrandom.solve()
     print('Random:\t\t\t\t', problem.objective_function(random_team)) # print('Random:\t\t\t', problem.objective_function(random_team), random_team)
     duration = round(time.time() - start_time, 2)
-    print('Valid: ', validate_solution(random_team, problem))
+    print('Valid: ', problem.validate_solution(random_team))
     print('(in ', duration, 's).\n')
 
     # Dvidie & Conquer
@@ -101,7 +88,7 @@ def main():
     solution_teams = byDAC.solve()
     print('Divide&Conquer:\t', problem.objective_function(solution_teams))
     duration = round(time.time() - start_time, 2)
-    print('Valid: ', validate_solution(solution_teams, problem))
+    print('Valid: ', problem.validate_solution(solution_teams))
     print('(in ', duration, 's).\n')
     del(byDAC)
     gc.collect()
@@ -115,7 +102,7 @@ def main():
                         'coef': 0.7, 'with_figure': False})
     print('DE:\t\t\t\t', problem.objective_function(de_team))
     duration = round(time.time() - start_time, 2)
-    print('Valid: ', validate_solution(de_team, problem))
+    print('Valid: ', problem.validate_solution(de_team))
     print('(in ', duration, 's).\n')
     gc.collect()
 
@@ -127,20 +114,21 @@ def main():
                         'with_figure': False})
     print('GA:\t\t\t\t', problem.objective_function(ga_team))
     duration = round(time.time() - start_time, 2)
-    print('Valid: ', validate_solution(ga_team, problem))
+    print('Valid: ', problem.validate_solution(ga_team))
     print('(in ', duration, 's).\n')
     # del(byGA)
     gc.collect()
 
-    # # Optimal (Exhaustive Search)
-    # start_time = time.time()
-    # byoptimal = methods.ByOptimal(problem)
-    # optimal_team = byoptimal.solve()
-    # print('Optimal:\t\t', problem.objective_function(optimal_team), optimal_team)
-    # duration = round(time.time() - start_time, 2)
-    # print('(in ', duration, 's).\n')
-    # del(byoptimal)
-    # gc.collect()
+    # Optimal (Exhaustive Search)
+    if n <= 10:
+        start_time = time.time()
+        byoptimal = methods.ByOptimal(problem)
+        optimal_team = byoptimal.solve()
+        print('Optimal:\t\t', problem.objective_function(optimal_team))
+        duration = round(time.time() - start_time, 2)
+        print('(in ', duration, 's).\n')
+        del(byoptimal)
+        gc.collect()
 
     # showing all figures now
     methods.plot_fitness_figure(byGA, 'GA')

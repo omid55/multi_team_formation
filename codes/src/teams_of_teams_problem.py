@@ -4,17 +4,15 @@
 
 # imports
 import numpy as np
-import pyemd
-
-RESCALE = True
-
+import networkx as nx
+import myutils
 
 # n: number of individuals
 # m: number of team members
 # k: number of teams
 # s: number of skills
 class Problem:
-    def __init__(self, n, s, m, k, alpha=1/3, beta=1/3, skill_weight=None):
+    def __init__(self, n, s, m, k, alpha=1/3, beta=1/3, skill_weight=None, ALWAYS_SAME=False, RESCALE=False, DISTRIBUTION='Uniform'):
         self.n = n
         self.m = m
         self.k = k
@@ -28,10 +26,14 @@ class Problem:
             self.skill_weight = skill_weight
         else:
             raise ValueError('Error in skill_weight parameter: Not expected structure/values.')
+        self.ALWAYS_SAME = ALWAYS_SAME
+        self.RESCALE = RESCALE
+        self.DISTRIBUTION = DISTRIBUTION
         self._generate()
         # **kwargs
         # for key, value in kwargs.iteritems():
         #     setattr(self, key, value)
+
 
     """It generates a dataset of people
     with different values for skills, risk taking and
@@ -40,19 +42,30 @@ class Problem:
     s: number of skills (skill dimensions)
     """
     def _generate(self):
-        #np.random.seed(1)  # to make all random values same   << COMMENT IT FOR ACTUAL RUN >>
+        if self.ALWAYS_SAME:
+            np.random.seed(1)  # to make all random values same
         # skills of every person: every person has a list of s elements describing his/her skill values fall in [0-1].
-        self.skills = np.random.rand(self.n, self.s)
+        if self.DISTRIBUTION == 'Uniform':
+            self.skills = np.random.rand(self.n, self.s)
+        elif self.DISTRIBUTION == 'Normal':
+            self.skills = np.random.randn(self.n, self.s) * 0.1666 + 0.5
+        else:
+            raise ValueError('ERROR in DISTRIBUTION value: ' % self.DISTRIBUTION)
         # risk taking of every person: it is also a value between [0,1].
-        self.risk_takings = np.random.rand(self.n)
+        if self.DISTRIBUTION == 'Uniform':
+            self.risk_takings = np.random.rand(self.n)
+        elif self.DISTRIBUTION == 'Normal':
+            self.risk_takings = np.random.randn(self.n) * 0.1666 + 0.5
         # network connectivity (or distance) is a matrix of n*n: we always can for any
         #   graph, compute the shortest path among all nodes
         #   and normalize it between [0,1]. We assume, relationships are not directed.
-        C = np.random.rand(self.n, self.n)
-        C = np.maximum(C, C.T)
-        for i in range(self.n):
-            C[i, i] = 0
-        self.network_connectivity = C
+        G = nx.to_undirected(nx.scale_free_graph(self.n))
+        D = nx.floyd_warshall_numpy(G)
+        D /= np.max(D)
+        self.network_connectivity = D
+
+    def get_all_objectives(self, teams):
+        return [self.objective_function(teams), self.score1(teams), self.score2(teams), self.score3(teams)]
 
     # teams: is a list of teams which each team is a list of indices (individual indices)
     #   for instance: teams = [[1,2,4],[0,3,5]]
@@ -81,9 +94,10 @@ class Problem:
     def score1_single_team(self, team):
         s1 = 0
         for i in range(self.s):
-            s1 += self.skill_weight[i] * np.mean(sorted(self.skills[team, i])[-2:])
-        if RESCALE:
-            s1 = 7 * (s1 - 0.79)
+            s1 += self.skill_weight[i] * np.mean(myutils.find_k_largest(self.skills[team, i], 2))
+        if self.RESCALE:
+            s1 = (s1 - 0.909493805838) * 32.7863085425/4
+            # s1 = 7 * (s1 - 0.79)
         return s1
 
     # score2 is defined as average value of score2 on each individual member
@@ -104,79 +118,118 @@ class Problem:
         distances = []
         for i in range(len(team)):
             for j in range(i+1, len(team)):
-                distances.append(self.network_connectivity[team[i]][team[j]])
+                distances.append(self.network_connectivity[team[i], team[j]])
         s2 = 1 - 2 * np.std(distances)
-        if RESCALE:
-            s2 = 13.8 * (s2 - 0.5)
+        if self.RESCALE:
+            # s2 = 13.8 * (s2 - 0.5)
+            s2 = (s2 - 0.512179110407) * 26.3912070405/5
         return s2
 
+
+    # def score3(self, teams):
+    #     k = self.k
+    #     m = self.m
+    #     if k != len(teams):
+    #         raise ValueError('The number of teams is different than problem\'s '
+    #                          'parameter initialization %d != %d' % (k, len(teams)))
+    #     optimal_bins = np.array([i / (k - 1) for i in range(k)])
+    #     optimal_volumes = np.ones(k) / k
+    #     distance_matrix = np.zeros((k, k))
+    #     individuals_risks = np.sort(self.risk_takings[ np.ndarray.flatten(np.array(teams)) ])   # risk taking value of all individuals in teams
+    #     if len(individuals_risks) != k * m:
+    #         raise ValueError('The number of individuals in teams are different than problem\'s '
+    #                          'parameter initialization %d != %d' % (k * m, len(individuals_risks)))
+    #     # volumes: the amount of samples on each value
+    #     # bins: a sorted bin values
+    #     teams_volumes, teams_bins = np.histogram(individuals_risks, bins=k)
+    #     teams_volumes = teams_volumes.astype(float, copy=False)   # to set it to be float
+    #     # normalizing
+    #     teams_volumes /= (m * k)
+    #     teams_bin_centers = [(teams_bins[i]+teams_bins[i+1])/2 for i in range(k)]
+    #     for i in range(k):
+    #         for j in range(k):
+    #             distance_matrix[i][j] = abs(optimal_bins[i] - teams_bin_centers[j])
+    #     s3 = 1 - pyemd.emd(optimal_volumes, teams_volumes, distance_matrix)
+    #     s3_best = self.score3_best(teams)
+    #     s3_e = self.score3_e(teams)
+    #     print('s3:', s3, 's3_e:', s3_e, 's3_best:', s3_best, '\n\n')
+    #     if RESCALE:
+    #         s3 = 13.56 * (s3 - 0.92)
+    #     return s3
+
+    # def score3_e(self, teams):    # emd without histogram works with average of team
+    #     k = self.k
+    #     if k != len(teams):
+    #         raise ValueError(
+    #             'The number of teams is different than problem\'s parameter initialization %d != %d' % (
+    #             k, len(teams)))
+    #     optimal_risk = np.array([i / (k - 1) for i in range(k)])
+    #     team_risks = sorted(np.array([np.mean(self.risk_takings[teams[i]]) for i in range(k)]))  # average of members'
+    #     return 2 - myutils.compute_emd(optimal_risk, team_risks)
+
+
+    # ---== Risk-taking ==---
     # Define the ideal risk-taking distribution across k teams as k \
     #   masses of 1/k located at positions 1/2k,3/2k,···,2k−1/2k
     #  Call this distribution RI. Given a set T of k teams, let R(T) be the normalized distribution of
     #   the risk-taking behavior of the k×m individuals
     #    For teams T, score3_emd(T) = 1−EMD(RI,R(T)).
-    # it returns a number in [0,1]
-    #   << CHECK HERE >> IT DOESN'T INCLUDE STD INSIDE TEAM
-    def score3(self, teams):
-        k = self.k
+    # It returns a number in [0,1]
+    def score3(self, teams, number_of_teams = None):  # emd without histogram works with each individual person
+        if number_of_teams is None:
+            k = self.k
+        else:
+            k = number_of_teams
         m = self.m
-        if k != len(teams):
-            raise ValueError('The number of teams is different than problem\'s parameter initialization %d != %d' % (k, len(teams)))
-        optimal_bins = np.array([i / (k - 1) for i in range(k)])
-        optimal_volumes = m * np.ones(k)
-        distance_matrix = np.zeros((k, k))
-        individuals_risks = np.sort(self.risk_takings[ np.ndarray.flatten(np.array(teams)) ])   # risk taking value of all individuals in teams
-        if len(individuals_risks) != k * m:
-            raise ValueError('The number of individuals in teams are different than problem\'s parameter initialization %d != %d' % (k * m, len(individuals_risks)))
-        # volumes: the amount of samples on each value
-        # bins: a sorted bin values
-        teams_volumes, teams_bins = np.histogram(individuals_risks, bins=k)
-        teams_volumes = teams_volumes.astype(float, copy=False)   # to set it to be float
-        # normalizing
-        optimal_volumes /= (m * k)
-        teams_volumes /= (m * k)
-        teams_bin_centers = [(teams_bins[i]+teams_bins[i+1])/2 for i in range(k)]
-        for i in range(k):
-            for j in range(k):
-                distance_matrix[i][j] = abs(optimal_bins[i] - teams_bin_centers[j])
-        s3 = 1 - pyemd.emd(optimal_volumes, teams_volumes, distance_matrix)
-        if RESCALE:
-            s3 = 13.56 * (s3 - 0.92)
+        team_risks = np.array([np.mean(self.risk_takings[teams[i]]) for i in range(k)])
+        ordered_teams = [x for _, x in sorted(zip(team_risks, teams))]  # in ascending order for risks
+        d = 0
+        for i, team in enumerate(ordered_teams):
+            if k != 1:
+                optimal_team_risk = i / (k-1)
+            else:
+                optimal_team_risk = 0.5
+            d += myutils.compute_emd(np.ones(m)*optimal_team_risk, self.risk_takings[team])
+        s3 = 1 - d/k
+        if self.RESCALE:
+            # s3 = 13.56 * (s3 - 0.92)
+            s3 = (s3 - 0.258237072526) * 11.3183152768/7.9
         return s3
 
-    # def score3_avgteam(self, teams):    # JUST FOR BACK UP
-    #     if self.k != len(teams):
-    #         raise ValueError(
-    #             'The number of teams is different than problem\'s parameter initialization %d != %d' % (
-    #             self.k, len(teams)))
-    #     optimal_risk = np.array([i / (self.k - 1) for i in range(self.k)])
-    #     team_risks = sorted(np.array(
-    #         [np.mean(self.risk_takings[teams[i]]) for i in range(self.k)]))  # average of members' risks
-    #     optimal_volumes = self.m * np.ones(self.k)
-    #     distance_matrix = np.zeros((self.k, self.k))
-    #     for i in range(self.k):
-    #         for j in range(self.k):
-    #             distance_matrix[i][j] = abs(team_risks[i] - optimal_risk[j])
-    #     return 1 - pyemd.emd(np.ones(self.k), optimal_volumes, distance_matrix)
 
-    # it DOESN'T returns a number in [0,1]
-    def score3_meanstd(self, teams):
-        k = self.k
-        eps = 0.001
-        means = np.zeros(k)
-        stds = np.zeros(k)
-        for i in range(k):
-            risks_i = self.risk_takings[teams[i]]  # risks taking values for team i
-            means[i] = np.mean(risks_i)
-            stds[i] = np.std(risks_i)
-        s3 = 0
-        for i in range(k):
-            s3_team = 0
-            for j in range(k):
-                s3_team += np.power((means[i] - means[j]), 2)
-            s3_team /= (k * (np.power(stds[i], 2) + eps))
-            s3 += s3_team
-        s3 /= k
-        return s3
+    """It validates if the teams parameter is valid w.r.t. problem info or not"""
+    ###Currently not using inside the problem (only in main)###
+    def validate_solution(self, teams):
+        if len(teams) != self.k:
+            return False
+        for team in teams:
+            if (len(team) != self.m) or (len(np.unique(team)) != self.m):
+                return False
+        members = np.ndarray.flatten(np.array(teams))
+        if len(np.unique(members)) != self.k * self.m:
+            return False
+        if np.where(members > self.n)[0] or np.where(members < 0)[0]:
+            return False
+        return True
 
+
+            # # it DOESN'T returns a number in [0,1]
+    # def score3_meanstd(self, teams):
+    #     k = self.k
+    #     eps = 0.001
+    #     means = np.zeros(k)
+    #     stds = np.zeros(k)
+    #     for i in range(k):
+    #         risks_i = self.risk_takings[teams[i]]  # risks taking values for team i
+    #         means[i] = np.mean(risks_i)
+    #         stds[i] = np.std(risks_i)
+    #     s3 = 0
+    #     for i in range(k):
+    #         s3_team = 0
+    #         for j in range(k):
+    #             s3_team += np.power((means[i] - means[j]), 2)
+    #         s3_team /= (k * (np.power(stds[i], 2) + eps))
+    #         s3 += s3_team
+    #     s3 /= k
+    #     return s3
 

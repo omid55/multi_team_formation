@@ -6,13 +6,14 @@ import numpy as np
 from queue import PriorityQueue
 import itertools as itt
 import matplotlib.pyplot as plt
-import seaborn as sns
 import sys
 
 
+
 class DivideAndConquerAlgorithm:
-    def __init__(self, problem):
+    def __init__(self, problem, algorithm_speed=3):
         self.problem = problem
+        self.algorithm_speed = algorithm_speed
 
 
     def solve(self):
@@ -29,7 +30,7 @@ class DivideAndConquerAlgorithm:
 
 
     # it is a recursive function divides ordered_people into 2 pieces
-    #   and ...
+    #   and searches each piece for half of teams_count which is required
     def find_teams(self, ordered_people, teams_count):
         if teams_count <= 1:
             # find only one team now
@@ -50,20 +51,39 @@ class DivideAndConquerAlgorithm:
         for i in range(half_required_people, len(ordered_people)-half_required_people+1):
             left = ordered_people[:i]
             right = ordered_people[i:]
-            left_est_fitness = self.estimate_fitness_simple(left, half_teams_count)
-            right_est_fitness = self.estimate_fitness_simple(right, half_teams_count)
+            left_est_fitness = self.estimate_fitness(left, half_teams_count)
+            right_est_fitness = self.estimate_fitness(right, half_teams_count)
+            # left_est_fitness = self.estimate_fitness_fast(left, half_teams_count)
+            # right_est_fitness = self.estimate_fitness_fast(right, half_teams_count)
             fitness.append((left_est_fitness + right_est_fitness)/2)
         r = half_required_people + np.argmax(fitness)
         return r
 
 
-    """It only considers score1 (skills)"""
-    def estimate_fitness_simple(self, people_list, teams_count):
+    """It estimate the fitness of probable teams_count teams in people_lists"""
+    def estimate_fitness(self, people_list, teams_count):
         s = self.problem.s
+        speed = self.algorithm_speed
         m = self.problem.m
-        skill_weight = self.problem.skill_weight
         if len(people_list) < m * teams_count:
-            return -1
+            return -999  # there is not enough people left in this people_list to create team_count teams of m people with
+        if speed == 3:
+            return self.approximate_skills_fast(people_list, teams_count)
+        elif speed == 2:
+            score1_estimate = self.approximate_skills_fast(people_list, teams_count)
+        elif speed == 1:
+            score1_estimate = self.approximate_skills(people_list, teams_count)
+        else:
+            raise ValueError('speed value is not valid. It should be one of 1,2,3 but it is ' % speed)
+        score3_estimate = self.approximate_risks(people_list, teams_count)
+        estimate = (1 - self.problem.alpha - self.problem.beta) * score1_estimate + self.problem.beta * score3_estimate
+        return estimate
+
+
+    """It only considers score1 (skills)"""
+    def approximate_skills_fast(self, people_list, teams_count):
+        s = self.problem.s
+        skill_weight = self.problem.skill_weight
         estimate = 0
         for j in range(s):
             sorted_skills = sorted(self.problem.skills[people_list, j])
@@ -80,9 +100,10 @@ class DivideAndConquerAlgorithm:
         people_size = len(people_list)
         couples_size = int((people_size*people_size+people_size)/2)
         skills = self.problem.skills
-        # setting the constants for this function
+        # parameter setting the constants for this function
         c1 = min(3*teams_count, couples_size)
         c2 = 100
+        eps = 0.1
         skill_weight = self.problem.skill_weight
         couples_scores = np.zeros(couples_size)
         approximate_score = 0
@@ -96,11 +117,12 @@ class DivideAndConquerAlgorithm:
                     cnt += 1
             bin_count = min(len(couples_scores), 50)
             hist, bins = np.histogram(couples_scores, bins=bin_count)
+            hist = hist + eps
             hist_probability = hist / sum(hist)
             mid_bins = bins[:-1] + np.diff(bins) / 2
             score = 0
             for run in range(c2):
-                samples = np.random.choice(mid_bins, size=c1, replace=True, p=hist_probability)    # HOW TO MAKE REPLACE FALSE??? << CHECK HERE >>
+                samples = np.random.choice(mid_bins, size=c1, replace=False, p=hist_probability)
                 samples_sorted = sorted(samples)
                 score += np.mean(samples_sorted[-teams_count:])
             score /= c2
@@ -109,34 +131,36 @@ class DivideAndConquerAlgorithm:
 
 
     def approximate_risks(self, people_list, teams_count):
-        return NotImplementedError()
-
-
-    def estimate_fitness(self, people_list, teams_count):
-        s = self.problem.s
         m = self.problem.m
-        if len(people_list) < m * teams_count:
-            return -1  # there is not enough people left in this people_list to create team_count teams of m people with
-        score1_estimate = self.approximate_skills(people_list, teams_count)
-        # score3_estimate = self.approximate_risks(people_list, teams_count)
-        # estimate = (1 - self.problem.alpha - self.problem.beta) * score1_estimate + self.problem.beta * score3_estimate
-        return score1_estimate #estimate
+        # parameter setting the constants for this function
+        s3_estimate = 0
+        c3 = 100
+        for i in range(c3):
+            samples = np.random.choice(people_list, size=m*teams_count, replace=False)
+            teams = []
+            for j in range(teams_count):
+                teams.append(list(sorted(samples[j * m:(j + 1) * m])))
+            s3_estimate += self.problem.score3(teams, number_of_teams=teams_count)
+        s3_estimate /= c3
+        return s3_estimate
 
 
     # This choice is made based on the skills of the individuals and the uniformity of network connectivity.
     def find_single_team(self, people):
         MAX_ITERATIONS = 1000
         m = self.problem.m
+        alpha = self.problem.alpha
+        beta = self.problem.beta
         l = len(people)
         # estimate_of_score1 = np.mean(sorted(self.problem.skills)[-2:])
         pq = PriorityQueue()    # priority queue of people in subset of teams
         for i in range(l):
             for j in range(i+1, l):
                 item = [people[i], people[j]]
-                estimate_score = np.mean(self.problem.skills[item]) # it does not have score2 because there is only one distance
+                estimate_score = self.problem.score1_single_team(item) # it does not have score2 because there is only one distance
                 pq.put((-estimate_score, item))
         for iteration in range(MAX_ITERATIONS):   # instead of while 1
-            (_,heap_top) = pq.get()
+            (_, heap_top) = pq.get()
             if len(heap_top) == m:   # if it has already the size of intended team size
                 return heap_top
             max_estimate = -sys.maxsize
@@ -146,7 +170,8 @@ class DivideAndConquerAlgorithm:
                 if new_member not in heap_top:
                     x = heap_top.copy()
                     x.append(new_member)
-                    estimate_score_tmp = self.problem.score1_single_team(x) + self.problem.score2_single_team(x)   # CHECK HERE << NOT EFFICIENT LIKE THIS >>
+                    estimate_score_tmp = (1 - alpha - beta) * self.problem.score1_single_team(x) \
+                                         + alpha * self.problem.score2_single_team(x)   # CHECK HERE << NOT EFFICIENT LIKE THIS >>
                     if estimate_score_tmp > max_estimate:
                         new_item = x
                         max_estimate = estimate_score_tmp
@@ -215,16 +240,14 @@ class ByOptimal:
         if number_of_teams <= 0 or len(people) < number_of_teams*m:
             return
         for team in list(itt.combinations(people, m)):
-            # print(len(teams_out))
-            teams_out.append(team)
-            # print(len(teams_out))
+            team_list = sorted(team)
+            teams_out.append(team_list)
             if number_of_teams == 1:
                 self.all_teams.append(teams_out.copy())
             else:
                 # deleting team and members before its smallest value
                 #   first, finding team indices
                 to_be_deleted_indices = []
-                team_list = sorted(team)
                 for i in range(len(team_list)):
                     index = np.where(people == team_list[i])[0]
                     if not i: # the first one
@@ -234,7 +257,7 @@ class ByOptimal:
                 rest_of_people = np.delete(people, to_be_deleted_indices)
                 if len(rest_of_people) >= (number_of_teams-1)*m:
                     self._generate_all_teams(rest_of_people, number_of_teams - 1, teams_out)
-            teams_out.remove(team)
+            teams_out.remove(team_list)
 
 
 """Evolutionary algorithms (non-convex optimizers)"""
