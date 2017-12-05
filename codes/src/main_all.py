@@ -9,11 +9,14 @@ from IPython.display import display
 
 def main_all(settings='small', DAC_SPEED=3, RESCALE=False, DISTRIBUTION='Uniform'):
     if settings == 'small':
-        parameters = [[5, 2, 2, 1], [7, 2, 2, 1], [7, 3, 2, 1], [9, 2, 4, 1], [12, 2, 4, 2]]
+        # parameters = [[5, 2, 2, 1], [7, 2, 2, 1], [7, 3, 2, 1], [9, 2, 4, 1], [12, 2, 4, 2]]
+        parameters = [[5, 2, 2, 2], [7, 2, 2, 2], [7, 3, 2, 2], [9, 2, 4, 2], [12, 2, 4, 3]]    # m < 2*d
         runs = 30
     else:
-        parameters = [[100, 5, 4, 1], [500, 10, 8, 4], [1000, 20, 16, 8]]
+        # parameters = [[100, 5, 4, 1], [500, 10, 8, 4], [1000, 20, 16, 8]]
+        parameters = [[100, 5, 4, 3], [500, 10, 8, 6], [1000, 20, 16, 15]]    # m < 2*d
         runs = 10
+        
     times = []
     for params in parameters:
         print(params)

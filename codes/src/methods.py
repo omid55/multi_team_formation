@@ -219,7 +219,9 @@ class ByOptimal:
     def __init__(self, problem):
         self.problem = problem
 
-    def solve(self):
+    def solve(self, given_objective_function=None):
+        if given_objective_function is None:
+            given_objective_function = self.problem.objective_function
         k = self.problem.k
         n = self.problem.n
         self.all_teams = []
@@ -227,7 +229,7 @@ class ByOptimal:
         optimal_fitness = -sys.maxsize
         optimal_team = None
         for team in self.all_teams:
-            fitness = self.problem.objective_function(team)
+            fitness = given_objective_function(team)
             if fitness > optimal_fitness:
                 optimal_fitness = fitness
                 optimal_team = team

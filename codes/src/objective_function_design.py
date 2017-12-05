@@ -3,6 +3,7 @@ import teams_of_teams_problem
 import numpy as np
 import time
 import matplotlib.pyplot as plt
+import methods
 
 
 def analyze_the_objective_function(problem, objective_function, population_size=10000):
@@ -62,11 +63,23 @@ def sample_for_score3():
     print(prob.score3([[2, 3], [4, 5], [6, 7]]))
 
 
+def sample_for_score1():
+    prob = teams_of_teams_problem.Problem(n=7, m=3, k=1, s=2)
+    # prob.skills = np.array([[0.5,0.1], [0.2,0.3], [0.1,0.5], [0.5,0.1], [0.3,0.4]])
+    prob.skills = np.array([[0.5, 0.1], [0.2, 0.3], [0.1, 0.5], [0.3, 0.3], [0.3, 0.4], [0.5, 0.2], [0.45, 0.15]])
+    byoptimal = methods.ByOptimal(prob)
+    optimal_team = byoptimal.solve(prob.score1)
+    print(optimal_team)
+    print('Optimal:\t\t', prob.score1(optimal_team))
+
+
 def main(RESCALE=False, DISTRIBUTION='Uniform'):
     prob = teams_of_teams_problem.Problem(n=1000, m=20, k=16, s=8, alpha=1/3, beta=1/3, RESCALE=RESCALE, DISTRIBUTION=DISTRIBUTION)
     plot_all_for_problem(prob)
 
 
 if __name__ == '__main__':
-    main()
+    # main()
     # sample_for_score3()
+    sample_for_score1()
+
