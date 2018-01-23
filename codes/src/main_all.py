@@ -7,10 +7,15 @@ import time
 from IPython.display import display
 
 
-def main_all(settings='small', DAC_SPEED=3, RESCALE=False, DISTRIBUTION='Uniform'):
+# n: number of individuals
+# m: number of team members
+# t: number of teams
+# s: number of skills
+# parameters = [n, m, t, s]
+def main_all(settings='small', DAC_SPEED=3, DISTRIBUTION='Uniform'):
     if settings == 'small':
         # parameters = [[5, 2, 2, 1], [7, 2, 2, 1], [7, 3, 2, 1], [9, 2, 4, 1], [12, 2, 4, 2]]
-        parameters = [[5, 2, 2, 2], [7, 2, 2, 2], [7, 3, 2, 2], [9, 2, 4, 2], [12, 2, 4, 3]]    # m < 2*d
+        parameters = [[5, 2, 2, 2], [7, 3, 2, 2], [7, 3, 2, 3], [9, 3, 2, 2], [14, 3, 4, 3]]    # m < 2*d
         runs = 30
     else:
         # parameters = [[100, 5, 4, 1], [500, 10, 8, 4], [1000, 20, 16, 8]]
@@ -22,7 +27,7 @@ def main_all(settings='small', DAC_SPEED=3, RESCALE=False, DISTRIBUTION='Uniform
         print(params)
         objectives = []
         for i in range(runs):
-            problem = teams_of_teams_problem.Problem(n=params[0], m=params[1], k=params[2], s=params[3], alpha=1/3, beta=1/3, RESCALE=RESCALE, DISTRIBUTION=DISTRIBUTION)
+            problem = teams_of_teams_problem.Problem(n=params[0], m=params[1], t=params[2], s=params[3], alpha=1/3, beta=1/3, DISTRIBUTION=DISTRIBUTION)
 
             start_time = time.time()
             byrandom = methods.ByRandom(problem)

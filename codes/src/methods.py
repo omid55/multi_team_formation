@@ -9,8 +9,15 @@ import matplotlib.pyplot as plt
 import sys
 
 
-
+# The proposed algorithm
 class DivideAndConquerAlgorithm:
+    """It needs a problem object and
+    algorithm_speed: it can have 3 different values and
+    it is used in estimating the fitness:
+    3: only estimate skills with simply picking the largest ones
+    2: estimate risk taking and skills with simply picking the largest ones
+    1: estimate risk taking and skills with sampling technique
+    """
     def __init__(self, problem, algorithm_speed=3):
         self.problem = problem
         self.algorithm_speed = algorithm_speed
@@ -18,13 +25,12 @@ class DivideAndConquerAlgorithm:
 
     def solve(self):
         self.solution_teams = []
-        k = self.problem.k
+        t = self.problem.t
         n = self.problem.n
         people_list = list(range(n))
         # sorting people with increasing order of their risk taking feature
-        # sorted_risks = sorted(self.problem.risk_takings[people_list])
         ordered_people = [x for _,x in sorted(zip(self.problem.risk_takings[people_list], people_list))]
-        self.find_teams(ordered_people, k)
+        self.find_teams(ordered_people, t)
         self.solution_teams = sorted([list(sorted(team)) for team in self.solution_teams])  # not necessary (just for being similar to other solutions)
         return self.solution_teams
 
@@ -145,10 +151,13 @@ class DivideAndConquerAlgorithm:
         return s3_estimate
 
 
+    # heap-based solution
     # This choice is made based on the skills of the individuals and the uniformity of network connectivity.
     def find_single_team(self, people):
         MAX_ITERATIONS = 1000
         m = self.problem.m
+        if m == len(people):  # if we have exactly the same number of people with team size then no need for searching
+            return people
         alpha = self.problem.alpha
         beta = self.problem.beta
         l = len(people)
@@ -156,9 +165,9 @@ class DivideAndConquerAlgorithm:
         pq = PriorityQueue()    # priority queue of people in subset of teams
         for i in range(l):
             for j in range(i+1, l):
-                item = [people[i], people[j]]
-                estimate_score = self.problem.score1_single_team(item) # it does not have score2 because there is only one distance
-                pq.put((-estimate_score, item))
+                team_of_two = [people[i], people[j]]
+                estimated_score = self.problem.score1_single_team(team_of_two) # it does not have score2 because there is only one distance
+                pq.put((-estimated_score, team_of_two))
         for iteration in range(MAX_ITERATIONS):   # instead of while 1
             (_, heap_top) = pq.get()
             if len(heap_top) == m:   # if it has already the size of intended team size
@@ -170,11 +179,11 @@ class DivideAndConquerAlgorithm:
                 if new_member not in heap_top:
                     x = heap_top.copy()
                     x.append(new_member)
-                    estimate_score_tmp = (1 - alpha - beta) * self.problem.score1_single_team(x) \
+                    estimated_score_tmp = (1 - alpha - beta) * self.problem.score1_single_team(x) \
                                          + alpha * self.problem.score2_single_team(x)   # CHECK HERE << NOT EFFICIENT LIKE THIS >>
-                    if estimate_score_tmp > max_estimate:
+                    if estimated_score_tmp > max_estimate:
                         new_item = x
-                        max_estimate = estimate_score_tmp
+                        max_estimate = estimated_score_tmp
             pq.put((-max_estimate, new_item))
         print('It didn\'t find any single team in function "find_single_team".')
         return -5  # which means ended without finding any good team
@@ -206,10 +215,10 @@ class ByRandom:
     def solve(self):
         n = self.problem.n
         m = self.problem.m
-        k = self.problem.k
-        people = np.random.choice(n, m*k, replace=False)
+        t = self.problem.t
+        people = np.random.choice(n, m*t, replace=False)
         teams = []
-        for i in range(k):
+        for i in range(t):
             teams.append(list(sorted(people[i*m:(i+1)*m])))
         teams = sorted(teams)
         return teams
@@ -222,10 +231,10 @@ class ByOptimal:
     def solve(self, given_objective_function=None):
         if given_objective_function is None:
             given_objective_function = self.problem.objective_function
-        k = self.problem.k
+        t = self.problem.t
         n = self.problem.n
         self.all_teams = []
-        self._generate_all_teams(np.array(range(0, n)), k, [])
+        self._generate_all_teams(np.array(range(0, n)), t, [])
         optimal_fitness = -sys.maxsize
         optimal_team = None
         for team in self.all_teams:
@@ -268,7 +277,7 @@ class ByOptimal:
 def init_population(problem, population_size):
     n = problem.n
     m = problem.m
-    k = problem.k
+    k = problem.t
     population = []
     for i in range(population_size):
         people = np.random.choice(n, m * k, replace=False)
@@ -391,7 +400,7 @@ class GeneticAlgorithm:
         population_size = len(population)
         if population_size != len(fitnesses):
             raise ValueError('Lengths of population and fitnesses are not same len(population): %d != len(fitnesses): %d' (population_size, len(fitnesses)))
-        k = self.problem.k
+        t = self.problem.t
         L = len(population[0])
         crossovered_population = []
         # choosing for crossover based on their fitnesses
@@ -403,7 +412,7 @@ class GeneticAlgorithm:
                 selected = np.random.choice(range(len(population)), 2, replace=False, p=fitnesses_as_distribution)
                 a = population[selected[0]]
                 b = population[selected[1]].copy()
-                b[np.where(b > 0)[0]] += k
+                b[np.where(b > 0)[0]] += t
                 # 2-point crossover
                 break_point = 1 + np.random.randint(L-2)   # an index between [1, L-2]
                 child1 = np.zeros(L)
@@ -427,7 +436,7 @@ class GeneticAlgorithm:
     # print(self.fix_chromosome(np.array([0, 0, 0, 0, 0, 1, 0, 0, 2])))
     # print(self.fix_chromosome(np.array([0, 0, 0, 0, 0, 0, 0, 0, 0])))
     def fix_chromosome(self, chromosome):
-        k = self.problem.k
+        t = self.problem.t
         m = self.problem.m
         # keep the bigger teams and remove smaller ones
         vals, counts = np.unique(chromosome, return_counts=True)
@@ -436,16 +445,16 @@ class GeneticAlgorithm:
             vals = vals[1:]
             counts = counts[1:]
         ordered_nonzero_vals = [x for _,x in sorted(zip(-counts,vals))]
-        if len(ordered_nonzero_vals) > k:
-            to_be_deleted_vals = ordered_nonzero_vals[k:]
+        if len(ordered_nonzero_vals) > t:
+            to_be_deleted_vals = ordered_nonzero_vals[t:]
             for v in to_be_deleted_vals:
                 indices = np.where(chromosome == v)[0]
                 chromosome[indices] = 0
-            ordered_nonzero_vals = ordered_nonzero_vals[:k]
+            ordered_nonzero_vals = ordered_nonzero_vals[:t]
         team_count_so_far = 0
         for v in ordered_nonzero_vals:
             indices = np.where(chromosome == v)[0]
-            if team_count_so_far >= k:
+            if team_count_so_far >= t:
                 chromosome[indices] = 0
                 continue
             if len(indices) > m:
@@ -456,8 +465,8 @@ class GeneticAlgorithm:
                 to_be_added = np.random.choice(zero_indices, m - len(indices), replace=False)
                 chromosome[to_be_added] = v
             team_count_so_far += 1
-        if team_count_so_far < k:
-            more_teams = k-team_count_so_far
+        if team_count_so_far < t:
+            more_teams = t-team_count_so_far
             zero_indices = np.where(chromosome == 0)[0]
             people = np.random.choice(zero_indices, m * more_teams, replace=False)
             maxvalue = np.max(chromosome)
@@ -503,7 +512,7 @@ class GeneticAlgorithm:
 
     """(OPTIONAL) Checking the population of the new generation if they are all valid"""
     def check_this_population(self, new_generation):
-        k = self.problem.k
+        t = self.problem.t
         m = self.problem.m
         n = self.problem.n
         for chromosome in new_generation:
@@ -512,10 +521,10 @@ class GeneticAlgorithm:
             self.check_this_chromosome(chromosome)
 
     def check_this_chromosome(self, chromosome):
-        k = self.problem.k
+        t = self.problem.t
         m = self.problem.m
         n = self.problem.n
-        for i in range(1,k):
+        for i in range(1, t):
             if len(np.where(chromosome == i)[0]) != m:
                 print('ERROR2')
                 return -1
@@ -593,7 +602,7 @@ class DifferentialEvolution:
         # REMOVE IT
         population_size = len(population)
         genesNum = len(population[0])
-        k = self.problem.k
+        t = self.problem.t
         next_generation = []
         fitness_of_next_generation = []
 
@@ -606,9 +615,9 @@ class DifferentialEvolution:
                 idx = np.random.choice(population_size, 3, replace=False)
                 x1 = population[idx[0]]
                 x2 = population[idx[1]].copy()
-                x2[np.where(x2 > 0)[0]] += k
+                x2[np.where(x2 > 0)[0]] += t
                 x3 = population[idx[2]].copy()
-                x3[np.where(x3 > 0)[0]] += 2*k
+                x3[np.where(x3 > 0)[0]] += 2*t
                 Ui = x1 + Beta * (x2 - x3)
             else:
                 print('NOT IMPLEMENTED FOR LARGER NVs.')

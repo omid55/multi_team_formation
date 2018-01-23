@@ -10,14 +10,14 @@ import seaborn as sns
 def plot_all_for_problem(problem):
     n = problem.n
     m = problem.m
-    k = problem.k
+    t = problem.t
     # a distribution of all score functions
     # creating a population
     population_size = 1000
     population = []
     for i in range(population_size):
-        people = np.random.choice(n, m * k, replace=False)
-        instance = [list(sorted(people[i * m:(i + 1) * m])) for i in range(k)]
+        people = np.random.choice(n, m * t, replace=False)
+        instance = [list(sorted(people[i * m:(i + 1) * m])) for i in range(t)]
         population.append(instance)
     # computing their fitnesses
     # objectives
@@ -44,28 +44,28 @@ def main():
     # parameters begins
     # n = 1000
     # m = 20
-    # k = 16
+    # t = 16
 
     # n = 10
     # m = 3
-    # k = 2
+    # t = 2
 
     n = 7
     m = 3
-    k = 2
+    t = 2
 
     #n = 7
     # n = 5
     # m = 2
-    # k = 2
+    # t = 2
 
-    s = 1
+    s = 4
 
     alpha = 1/3
     beta = 1/3
     skill_weight = np.ones(s) / s  # all skills are equally important
     # parameters ends
-    problem = teams_of_teams_problem.Problem(n=n, s=s, m=m, k=k, alpha=alpha, beta=beta, skill_weight=skill_weight, ALWAYS_SAME=True)
+    problem = teams_of_teams_problem.Problem(n=n, s=s, m=m, t=t, alpha=alpha, beta=beta, skill_weight=skill_weight, ALWAYS_SAME=True)
 
     # plot_all_for_problem(problem)
 
